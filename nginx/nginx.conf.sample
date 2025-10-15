@@ -1,0 +1,45 @@
+# Requires OpenResty (nginx + LuaJIT). Conceptual example.
+# Adjust backend/upstreams for your environment.
+worker_processes  1;
+events { worker_connections  1024; }
+
+http {
+  lua_shared_dict waf 10m;
+
+  upstream backend_app {
+    server 127.0.0.1:8080;  # your app here
+  }
+
+  server {
+    listen 8081;
+
+    location / {
+      access_by_lua_block {
+        local http = require "resty.http"
+        local cjson = require "cjson.safe"
+        local httpc = http.new()
+        httpc:set_timeout(80)
+
+        local method = ngx.req.get_method()
+        local path = ngx.var.request_uri or "/"
+        local payload = cjson.encode({ normalized = "[METHOD] "..method.." [PATH] "..path })
+
+        local res, err = httpc:request_uri("http://127.0.0.1:9001/detect", {
+          method = "POST",
+          body = payload,
+          headers = { ["Content-Type"] = "application/json" }
+        })
+
+        if res and res.status == 200 then
+          local obj = cjson.decode(res.body) or {}
+          local score = obj.score or 0.0
+          if score and score > 2.5 then
+            return ngx.exit(403)
+          end
+        end
+        -- default: allow
+      }
+      proxy_pass http://backend_app;
+    }
+  }
+}

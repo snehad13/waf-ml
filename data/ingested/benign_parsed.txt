@@ -1,0 +1,2 @@
+GET /index.php?id=<<SYM>> user-agent=curl/<<SYM>>.<<SYM>>.<<SYM>>
+GET /search?q=test user-agent=mozilla/<<SYM>>.<<SYM>>
